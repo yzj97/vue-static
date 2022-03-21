@@ -1,0 +1,300 @@
+<template>
+  <div>
+    <ody-list-search-area>
+      <div slot="content">
+        <el-form ref="search" :model="search" label-width="100px" class="form">
+          <ody-search-item :label="$t('商家')" prop="merchantId">
+            <ody-merchant-select
+              v-model="search.merchantId"
+              name="search_merchantId"
+              value-key="merchantId"
+            />
+          </ody-search-item>
+          <ody-search-item :label="$t('类目树名称')" prop="name">
+            <el-input v-model="search.name" name="search_name" />
+          </ody-search-item>
+        </el-form>
+      </div>
+      <div slot="btn">
+        <el-button name="handleReset" size="small" @click="handleReset">{{
+          $t("重置")
+        }}</el-button>
+        <ody-button
+          name="MerchantCategoryManeageQuery"
+          size="small"
+          type="primary"
+          code="MerchantCategoryManeageQuery"
+          @click.prevent="handleSubmit"
+        >{{ $t("查询") }}</ody-button
+        >
+      </div>
+    </ody-list-search-area>
+    <ody-list-table-area>
+      <div slot="btn">
+        <ody-button
+          name="MerchantCategoryManeageAdd_dialogVisible"
+          size="small"
+          type="primary"
+          code="MerchantCategoryManeageAdd"
+          @click="dialogVisible = true"
+        >{{ $t("新增") }}</ody-button
+        >
+      </div>
+      <div slot="table">
+        <ody-table
+          ref="table"
+          :data="list"
+          :columns="table.columns"
+          :operates="table.operates"
+          name="list742"
+        >
+          <template slot="categoryType" slot-scope="scope">{{
+            scope.row.categoryType | keyVal(getCategoryOptions)
+          }}</template>
+          <template slot="name" slot-scope="scope">
+            <div>
+              <router-link
+                :to="
+                  $portal.hasPermission('MerchantCategoryTreeDetail')
+                    ? {
+                      name: 'MerchantCategoryTreeDetail',
+                      query: { id: scope.row.id, isView: true }
+                    }
+                    : {}
+                "
+              >
+                <span style="color: blue">{{ scope.row.name }}</span>
+              </router-link>
+            </div>
+          </template>
+        </ody-table>
+      </div>
+      <div slot="page">
+        <ody-pagination
+          :current-page.sync="page.currentPage"
+          :list="list"
+          :page-sizes="[10, 20, 30, 50]"
+          :page-size.sync="page.itemsPerPage"
+          :total.sync="page.total"
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handlePageSizeChange"
+          @current-change="handlePageCurrentChange"
+        />
+      </div>
+    </ody-list-table-area>
+    <category-dialog-add
+      v-if="dialogVisible"
+      :visible.sync="dialogVisible"
+      :category-type="4"
+      :lang="lang"
+      @ok="addCategory"
+    />
+  </div>
+</template>
+<script>
+import categoryDialogAdd from '@/components/category-dialog-add'
+import constant from '@/utils/constants'
+import mpConstant from '@/constant/mpConstant.js'
+export default {
+  components: {
+    categoryDialogAdd
+  },
+  data() {
+    return {
+      dialogVisible: false,
+      categoryOptions: constant.categoryOptions,
+      typeMap: mpConstant.MERCHANT_CATEGORY_TYPE,
+      lang: '第二语言',
+      merchantMap: {},
+      search: {},
+      page: {
+        itemsPerPage: 10,
+        currentPage: 1,
+        total: 10
+      },
+      list: [],
+      table: {
+        columns: [
+          {
+            label: this.$t('类目树名称'),
+            slot: 'name',
+            align: 'center',
+            show: true,
+            minWidth: 120
+          },
+          {
+            label: this.$t('类目树名称（第二语言）'),
+            prop: 'nameLan2',
+            align: 'center',
+            show: true,
+            minWidth: 200
+          },
+          {
+            label: this.$t('类目树编码'),
+            prop: 'categoryCode',
+            align: 'center',
+            minWidth: 200,
+            show: true
+          },
+          {
+            label: this.$t('类目树类型'),
+            align: 'center',
+            prop: 'type',
+            minWidth: 120,
+            show: true,
+            formatter: row => {
+              return this.typeMap[row.type]
+            }
+          },
+          {
+            label: this.$t('商家名称'),
+            align: 'center',
+            prop: 'merchantName',
+            minWidth: 120,
+            show: true,
+            formatter: row => {
+              return this.merchantMap[row.merchantId].merchantName
+            }
+          },
+          {
+            label: this.$t('商家编码'),
+            align: 'center',
+            prop: 'merchantCode',
+            minWidth: 120,
+            show: true,
+            formatter: row => {
+              return this.merchantMap[row.merchantId].merchantCode
+            }
+          }
+        ],
+        operates: {
+          width: 150,
+          fixed: 'right',
+          list: [
+            {
+              label: this.$t('编辑'),
+              method: (index, row) => {
+                this.$router.push({
+                  name: 'MerchantCategoryTreeDetail',
+                  query: { id: row.id, isView: false }
+                })
+              },
+              code: 'MerchantCategoryManeageEdit'
+            },
+            {
+              label: this.$t('删除'),
+              hidden: function(index, row) {
+                return row.type === 1
+              },
+              method: (index, row) => {
+                this.deleteCategory(row)
+              },
+              code: 'MerchantCategoryManeageDelete'
+            }
+          ]
+        }
+      }
+    }
+  },
+  computed: {
+    getCategoryOptions() {
+      return this.categoryOptions.reduce((rtv, item) => {
+        rtv[item.value] = item.label
+        return rtv
+      }, {})
+    }
+  },
+  async mounted() {
+    try {
+      this.mpApi = this.$product.$api.mpApi
+      await this.getMerchantList()
+      await this.query()
+    } catch (e) {
+      console.log(e)
+    }
+  },
+  methods: {
+    handleReset() {
+      this.search = {}
+    },
+    async handleSubmit() {
+      await this.query()
+    },
+    async query(obj = {}) {
+      const param = Object.assign({}, this.search, this.page, obj)
+
+      this.loading = true
+      try {
+        const res = await this.mpApi.listMerchantCategory(param)
+        this.list = res.data.listObj
+        this.page.total = res.data.total
+      } finally {
+        this.loading = false
+      }
+    },
+    async handlePageSizeChange(size) {
+      try {
+        this.$nextTick(function() {
+          this.query()
+        })
+      } catch (ex) {
+        console.log(ex)
+      }
+    },
+    async handlePageCurrentChange() {
+      try {
+        await this.query()
+      } catch (ex) {
+        console.log(ex)
+      }
+    },
+    addCategory(val) {
+      console.log(val)
+      this.query()
+    },
+    deleteCategory(val) {
+      this.loading = true
+      try {
+        this.$confirm('是否确认删除?', this.$t('提示'), {
+          confirmButtonText: this.$t('确定'),
+          cancelButtonText: this.$t('取消'),
+          type: 'warning'
+        })
+          .then(() => {
+            this.mpApi
+              .deleteRootCategoryTreeBack({ id: val.id, type: 4 })
+              .then(res => {
+                this.query()
+                this.$message({
+                  type: 'success',
+                  message: '删除成功!'
+                })
+              })
+          })
+          .catch(() => {
+            this.$message({
+              type: 'info',
+              message: '已取消删除'
+            })
+          })
+      } finally {
+        this.loading = false
+      }
+    },
+    getMerchantList() {
+      return this.$product.$api.merchantApi
+        .queryPlatformAuthMerchantPage({
+          currentPage: 1,
+          itemsPerPage: 500
+        })
+        .then(res => {
+          this.merchantList = res.data.listObj
+          this.merchantList.map(item => {
+            this.merchantMap[item.merchantId] = item
+          })
+        })
+    }
+  }
+}
+</script>

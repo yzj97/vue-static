@@ -1,0 +1,35 @@
+<template>
+  <el-table
+    :data="tableData"
+    name="tableData304"
+    style="width: 100%">
+    <el-table-column
+      :label="$t('do_product_name')"
+      prop="mpName"
+      width="180"/>
+    <el-table-column
+      :label="$t('do_product_code')"
+      prop="mpCode"
+      width="180"/>
+    <el-table-column
+      :label="$t('do_bar_code')"
+      prop="barCode"
+      width="180"/>
+    <el-table-column
+      :label="$t('do_bar_code')"
+      prop="barCode"
+      width="180"/>
+    <el-table-column
+      :label="$t('manual_order_product_attr')"
+      prop="standard"
+      width="180"/>
+    <el-table-column
+      :label="$t('do_delivered_num')"
+      prop="barCode"
+      width="180"/>
+    <el-table-column
+      :label="$t('stock_num')"
+      prop="barCode"
+      width="180"/>
+  </el-table>
+</template>

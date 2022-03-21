@@ -1,0 +1,283 @@
+<template>
+  <div>
+    <section>
+      <ody-list-table-area>
+        <!-- <div slot="btn">
+          <el-button size="mini" type="primary" @click="createType">{{ $t('newly_added') }}</el-button>
+        </div> -->
+        <div slot="table">
+          <ody-table
+            :loading="loading"
+            :can-filter="false"
+            :data="listTable.data"
+            :columns="listTable.columns"
+            :operates="listTable.operates">
+            <template slot="memberTypeName" slot-scope="scope">
+              <el-button
+                type="text"
+                @click="handleShowMemberType(scope.row)"
+              >
+                {{ scope.row.memberTypeName }}
+              </el-button>
+            </template>
+            <template slot="createTime" slot-scope="scope">
+              {{ scope.row.createTime | parseTime }}
+            </template>
+          </ody-table>
+        </div>
+        <div slot="page">
+          <ody-pagination background
+              :current-page.sync="searchForm.currentPage"
+              :page-sizes="[10, 20, 30, 50]"
+              :page-size.sync="searchForm.itemsPerPage"
+              :total.sync="listTable.total"
+              layout="total, sizes, prev, pager, next, jumper"
+              @size-change="handlePageSizeChange"
+              @current-change="handlePageCurrentChange"/>
+
+        </div>
+      </ody-list-table-area>
+    </section>
+    <ody-dialog
+      :visible.sync="editModalVisible"
+      :before-close="handleClose"
+      :title="$t('modifying_the_type_of_member')"
+      width="50%"
+      @open="initDialog" >
+      <section class="pg-editNum">
+        <el-form
+          ref="form"
+          :rules="rules"
+          :model="dataForm"
+          :disabled="isView"
+          label-width="100px"
+          class="form">
+          <el-form-item :label="$t('type_name')" prop="memberTypeName">
+            <el-input v-model="dataForm.memberTypeName" :disabled="!!dataForm.id" />
+          </el-form-item>
+          <el-form-item :label="$t('type_description')">
+            <el-input
+              v-model="dataForm.remark"
+              :placeholder="$t('textareaLimit', { min: 0, max: 100})"
+              :rows="3"
+              type="textarea"
+              maxlength="100"/>
+          </el-form-item>
+        </el-form>
+      </section>
+      <span slot="footer" class="dialog-footer">
+        <template v-if="isAdd || isEdit">
+          <el-button size="small" @click="handleClose">
+            {{ $t('cancel') }}
+          </el-button>
+          <el-button
+            :disabled="submiting"
+            size="small"
+            type="primary"
+            @click="handleOk('form')"
+          >
+            {{ $t('preservation') }}
+          </el-button>
+        </template>
+        <template v-else>
+          <el-button
+            type="primary"
+            size="small"
+            @click="handleClose"
+          >
+            {{ $t('确定') }}
+          </el-button>
+        </template>
+      </span>
+    </ody-dialog>
+  </div>
+</template>
+<script>
+
+export default {
+  data() {
+    const self = this
+    return {
+      loading: false,
+      editModalVisible: false,
+      status: 0,
+      submiting: false,
+      dataForm: {
+        id: null,
+        memberTypeName: null,
+        remark: null
+      },
+      rules: {
+        memberTypeName: [
+          { required: true, message: this.$t('required'), trigger: 'change' }
+        ]
+      },
+      listTable: {
+        total: 0,
+        data: [],
+        columns: [
+          {
+            show: true,
+            slot: 'memberTypeName',
+            label: self.$t('member_type'),
+            align: 'center',
+            minWidth: 100
+          },
+          {
+            show: true,
+            prop: 'remark',
+            label: self.$t('describe'),
+            align: 'center',
+            minWidth: 250
+          },
+          {
+            show: true,
+            prop: 'memberLevelNum',
+            label: self.$t('inclusion_level'),
+            align: 'center',
+            minWidth: 100
+          },
+          {
+            show: true,
+            prop: 'memberNum',
+            label: self.$t('number_of_members'),
+            align: 'center',
+            minWidth: 100
+          },
+          {
+            show: true,
+            slot: 'createTime',
+            label: self.$t('creation_time'),
+            align: 'center',
+            minWidth: '100'
+          }
+        ],
+        operates: {
+          width: 80,
+          fixed: 'right',
+          list: [
+            {
+              label: self.$t('edit'),
+              disabled: false,
+              method(index, row) {
+                self.handleEdit(index, row)
+              }
+            }
+          ]
+        }
+      },
+      searchForm: {
+        currentPage: 1,
+        itemsPerPage: 10
+      }
+
+    }
+  },
+  computed: {
+    isView() {
+      return this.status === 2
+    },
+    isEdit() {
+      return this.status === 1
+    },
+    isAdd() {
+      return this.status === 0
+    }
+  },
+  mounted() {
+    this.init()
+  },
+  methods: {
+    handleShowMemberType(row) {
+      this.dataForm = Object.assign({}, row)
+      this.status = 2
+      this.editModalVisible = true
+    },
+    // 编辑
+    handleEdit(index, row) {
+      this.dataForm = Object.assign({}, row)
+      this.status = 1
+      this.editModalVisible = true
+    },
+    // 新建
+    createType() {
+      this.dataForm = {}
+      this.status = 0
+      this.editModalVisible = true
+    },
+    handleClose() {
+      this.editModalVisible = false
+    },
+    handleOk(formName) {
+      const vue = this
+      this.$refs[formName].validate(valid => {
+        if (valid) {
+          vue.submiting = true
+        }
+        const isEdit = !!vue.dataForm.id
+        let promise = vue.$ouserCenter.$api.memberService.modifyMemberType
+        if (!isEdit) {
+          promise = vue.$ouserCenter.$api.memberService.addMemberType
+        }
+        promise(vue.dataForm).then(result => {
+          if (result.code === '0') {
+            vue.$message({
+              type: 'success',
+              message: isEdit ? vue.$t('amend_the_success') : vue.$t('new_success')
+            })
+            vue.editModalVisible = false
+            vue.init()
+          }
+        }).finally(res => {
+          vue.submiting = false
+        })
+      })
+    },
+    async handlePageSizeChange() {
+      try {
+        await this.updateList()
+      } catch (ex) {
+        console.log(ex)
+      }
+    },
+    async handlePageCurrentChange() {
+      try {
+        await this.updateList()
+      } catch (ex) {
+        console.log(ex)
+      }
+    },
+    async updateList() {
+      try {
+        this.loading = true
+        await getList(this)
+        this.loading = false
+      } catch (ex) {
+        console.log(ex)
+      }
+    },
+    init() {
+      getList(this)
+    }
+  }
+}
+
+function getList(vue) {
+  const param = {
+    currentPage: vue.searchForm.currentPage,
+    itemsPerPage: vue.searchForm.itemsPerPage,
+    queryCount: 1
+  }
+  const memberService = vue.$ouserCenter.$api.memberService
+  memberService.queryMemberTypeList(param).then((res) => {
+    const data = res.data.listObj
+    vue.listTable.data = data
+    vue.listTable.total = res.data.total
+  })
+}
+
+</script>
+
+<style>
+
+</style>

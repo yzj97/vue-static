@@ -1,0 +1,227 @@
+<template>
+  <div>
+    <ody-dialog
+      :visible="visible"
+      :before-close="handleClose"
+      :title="$t('please_choose')"
+      width="960px"
+      @open="init" >
+      <section class="pg-userModal-list">
+        <ody-list-search-area>
+          <div slot="content">
+            <el-form ref="searchForm" :model="searchForm" label-width="50px" class="form">
+              <ody-search-item
+                :label="$t('manual_order_user_id')"
+                :rules="[
+                  { pattern: /^[0-9]*$/, message: this.$t('仅支持数字'), trigger: 'change' },
+                  { min: 0, max: 16, message: this.$t('长度在') + ' 0 ' + this.$t('到') + ' 16 ' + this.$t('个字符'), trigger: 'change' }
+                ]"
+                prop="id">
+                <el-input
+                  v-model="searchForm.id"
+                  name="searchForm_id"
+                  maxlength="16"
+                />
+              </ody-search-item>
+              <ody-search-item :label="$t('manual_order_user_name')" prop="nickName">
+                <el-input v-model="searchForm.nickName" name="searchForm_nickName" maxlength="20"/>
+              </ody-search-item>
+              <ody-search-item :label="$t('manual_order_user_mobile')" prop="mobile">
+                <el-input v-model="searchForm.mobile" name="searchForm_mobile" maxlength="20"/>
+              </ody-search-item>
+            </el-form>
+          </div>
+          <div slot="btn">
+            <el-button name="handleSearchSubmit" size="small" type="primary" @click="handleSearchSubmit">{{ $t('common_select') }}</el-button>
+            <el-button name="handleSearchReset" size="small" @click="handleSearchReset">{{ $t('common_reset') }}</el-button>
+          </div>
+        </ody-list-search-area>
+        <ody-list-table-area>
+          <div slot="table">
+            <ody-table
+              :loading="loading"
+              :data="list"
+              :columns="columns"
+              :checked="checked"
+              :highlight-current-row="true"
+              name="list074"
+              @selection-change="handleSelectionChange"
+            />
+          </div>
+          <div slot="page">
+            <div class="block">
+              <ody-pagination
+                v-if="list && list.length"
+                :current-page.sync="page.current"
+                :list="list"
+                :page-sizes="[10, 20, 30, 50, 100]"
+                :page-size.sync="page.size"
+                :total.sync="page.total"
+                layout="  prev, pager, next, jumper"
+                @size-change="handlePageSizeChange"
+                @current-change="handlePageCurrentChange"/>
+            </div>
+            <!-- <font v-bind="hideMIds" color="white"/> -->
+          </div>
+        </ody-list-table-area>
+      </section>
+      <span slot="footer" class="dialog-footer">
+        <el-button name="handleClose" size="small" @click="handleClose">{{ $t('common_cancel') }}</el-button>
+        <el-button :disabled="!checked || checked.length === 0" name="handleOk" size="small" type="primary" @click="handleOk">{{ $t('ok') }}</el-button>
+      </span>
+    </ody-dialog>
+  </div>
+</template>
+
+<script>
+
+export default {
+  props: {
+    visible: {
+      type: Boolean,
+      default: false
+    }
+  },
+  data() {
+    return {
+      searchForm: getDefaultSearchForm(),
+      loading: false,
+      checked: [],
+      list: [],
+      page: getDefaultPage(),
+
+      columns: [
+        {
+          show: true,
+          prop: 'id',
+          label: this.$t('manual_order_user_id'),
+          align: 'center',
+          minWidth: 40
+        },
+        {
+          show: true,
+          prop: 'nickname',
+          label: this.$t('manual_order_user_name'),
+          align: 'center',
+          minWidth: 40
+        },
+        {
+          show: true,
+          prop: 'mobile',
+          label: this.$t('manual_order_user_mobile'),
+          align: 'center',
+          minWidth: 40
+        }
+      ]
+    }
+  },
+  methods: {
+    async updateList() {
+      try {
+        this.loading = true
+        await loadList(this)
+      } catch (ex) {
+        console.log(ex)
+      } finally {
+        this.loading = false
+      }
+    },
+    async handleSearchSubmit() {
+      try {
+        this.page.current = 1
+        await this.updateList()
+      } catch (ex) {
+        console.log(ex)
+      }
+    },
+    handleSelectionChange(val) {
+      this.checked = [val]
+    },
+    handleSearchReset() {
+      this.page = getDefaultPage()
+      this.searchForm = getDefaultSearchForm()
+    },
+    async handlePageSizeChange(size) {
+      try {
+        this.$nextTick(function() {
+          this.updateList()
+        })
+      } catch (ex) {
+        console.log(ex)
+      }
+    },
+    async handlePageCurrentChange() {
+      try {
+        await this.updateList()
+      } catch (ex) {
+        console.log(ex)
+      }
+    },
+    init() {
+      this.checked = []
+      this.handleSearchReset()
+      this.handleSearchSubmit()
+    },
+    handleClose() {
+      this.$emit('update:visible', !this.visible)
+    },
+    handleOk() {
+      const vue = this
+      if (!this.checked || this.checked.length === 0) {
+        this.$message({
+          type: 'warning',
+          message: this.$t('errorSelectAtLeastOne')
+        })
+      } else {
+        vue.$emit('update:visible', !vue.visible)
+        vue.$emit('ok', vue.checked[0])
+      }
+    }
+  }
+}
+async function loadList(vue) {
+  if (vue.$refs['searchForm']) {
+    const [err] = await vue.formValidate('searchForm')
+
+    if (err) {
+      return
+    }
+  }
+
+  const param = {
+    itemsPerPage: vue.page.size,
+    currentPage: vue.page.current,
+    isAvailable: 1,
+    userType: 2,
+    ignoreSso: 1,
+    limitCount: 10000,
+    ...vue.searchForm
+  }
+  const common = vue.$oms.$api.common
+  const result = await common.userList(param)
+  if (result && result.data) {
+    const data = result.data
+    vue.list = data.listObj
+    vue.page.total = data.total
+  }
+}
+
+function getDefaultSearchForm() {
+  return Object.assign({}, {
+    id: null,
+    nickName: null,
+    mobile: null
+  })
+}
+function getDefaultPage() {
+  return {
+    size: 10,
+    current: 1,
+    total: 0
+  }
+}
+</script>
+
+<style lang="scss" scoped>
+
+</style>
