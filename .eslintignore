@@ -1,0 +1,7 @@
+build/*.js
+config/*.js
+src/assets
+src/modules
+*.md
+src/appdflow/components/EditorToolbar/ToolbarButton.vue
+src/appdflow/components/EditorContextMenu/MenuItem.vue
